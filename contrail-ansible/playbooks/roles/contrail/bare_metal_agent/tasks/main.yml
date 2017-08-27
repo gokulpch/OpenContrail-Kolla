@@ -1,0 +1,22 @@
+---
+- name: sm_status_report - bare_metal_agent_started
+  debug:
+    msg: "bare_metal_agent_started"
+
+- include: install/{{ ansible_os_family }}.yml
+  tags: [contrail.bare_metal_agent.package, package]
+
+- include_role: name=node tasks_from=copy_ssl_certs
+  tags: [install, contrail.bare_metal_agent.install]
+  vars:
+    ssl_certs_dir: '/etc/contrail/ssl'
+    ssl_cert_key_path: "{{ ssl_certs_dir }}/private/server-privkey.pem"
+    ssl_cert_path: "{{ ssl_certs_dir }}/certs/server.pem"
+    ssl_ca_cert_path: "{{ ssl_certs_dir }}/certs/ca-cert.pem"
+
+- include: provision/main.yml
+  tags: [contrail.bare_metal_agent.provision, provision]
+
+- name: sm_status_report - bare_metal_agent_completed
+  debug:
+    msg: "bare_metal_agent_completed"

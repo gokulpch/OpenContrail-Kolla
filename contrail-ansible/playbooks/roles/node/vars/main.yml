@@ -1,0 +1,107 @@
+---
+compute_nodes: "{{ compute_list | join(',') }}"
+analytics_nodes_tmp:  "{{ analytics_ll_ip_list if nested_mode else analytics_list }}"
+analytics_nodes: "{{ analytics_nodes_tmp | join(',') }}"
+analyticsdb_nodes: "{{ analyticsdb_list | join(',') }}"
+controller_nodes_tmp:  "{{ controller_ll_ip_list if nested_mode else controller_list }}"
+controller_nodes: "{{ controller_nodes_tmp | join(',') }}"
+ceph_controller_nodes: "{{ceph_controller_list | join(',') }}"
+global_config_detected:
+  cloud_orchestrator: "{{ cloud_orchestrator }}"
+  controller_nodes: "{{ controller_nodes }}"
+  ceph_controller_nodes: "{{ ceph_controller_nodes }}"
+  analytics_nodes: "{{ analytics_nodes }}"
+  analyticsdb_nodes: "{{ analyticsdb_nodes }}"
+  compute_nodes: "{{ compute_nodes }}"
+  config_ip: "{{ config_ip }}"
+  controller_ip: "{{ controller_ip }}"
+  analytics_ip: "{{ analytics_ip }}"
+  enable_config_service: "{{ enable_config_service }}"
+  enable_control_service: "{{ enable_control_service }}"
+  enable_webui_service: "{{ enable_webui_service }}"
+  config_nodes: "{{ config_nodes if config_nodes else config_server_list_derived | join(',') }}"
+  webui_nodes: "{{ webui_nodes if webui_nodes else webui_server_list_derived | join(',') }}"
+  sandesh_ssl_enable: "{{ sandesh_ssl_enable }}"
+  introspect_ssl_enable: "{{ introspect_ssl_enable }}"
+
+webui_config_orig: "{{ webui_config | default({}) | combine({'webui_storage_enable': webui_storage_enable}) }}"
+agent_compile_vrouter_module_orig: "{{(agent_compile_vrouter_module is defined) | ternary(agent_compile_vrouter_module, 'undef')}}"
+global_config_orig: "{{ global_config_detected | combine(global_config|default({})) | combine(global_config_extra|default({})) }} "
+non_bare_metal_vrouter_compile: "{{ (agent_compile_vrouter_module_orig != 'undef') | ternary(agent_compile_vrouter_module_orig|ternary(true, false), external_vrouter_compile|ternary(false,true)) }}"
+gateway_mode: "{{ hostvars[inventory_hostname].get('compute_as_gateway_mode') }}"
+
+# Vrouter module params defaults
+flow_entries_str: "{{ 'flow_entries=' + hostvars[inventory_hostname].get('flow_entries') | string + ',' if hostvars[inventory_hostname].get('flow_entries') else '' }}"
+mpls_labels_str: "{{ 'mpls_labels=' + hostvars[inventory_hostname].get('mpls_labels') | string  + ',' if hostvars[inventory_hostname].get('mpls_labels') else '' }}"
+nexthops_str: "{{ 'nexthops=' + hostvars[inventory_hostname].get('nexthops') | string + ',' if hostvars[inventory_hostname].get('nexthops') else '' }}"
+vrfs_str: "{{ 'vrfs=' + hostvars[inventory_hostname].get('vrfs') | string + ',' if hostvars[inventory_hostname].get('vrfs') else '' }}"
+macs_str: "{{ 'macs=' + hostvars[inventory_hostname].get('macs') | string + ',' if hostvars[inventory_hostname].get('macs') else '' }}"
+oflow_entries_str: "{{ 'oflow_entries=' + hostvars[inventory_hostname].get('oflow_entries') | string + ',' if hostvars[inventory_hostname].get('oflow_entries') else '' }}"
+mac_oentries_str: "{{ 'mac_oentries=' + hostvars[inventory_hostname].get('mac_oentries') | string + ',' if hostvars[inventory_hostname].get('mac_oentries') else '' }}"
+max_interface_entries_str: "{{ 'max_interface_entries=' + hostvars[inventory_hostname].get('max_interface_entries') | string + ',' if hostvars[inventory_hostname].get('max_interface_entries') else '' }}"
+flow_hold_limit_str: "{{ 'flow_hold_limit=' + hostvars[inventory_hostname].get('flow_hold_limit') | string + ',' if hostvars[inventory_hostname].get('flow_hold_limit') else '' }}"
+vrouter_dbg_str: "{{ 'vrouter_dbg=' + hostvars[inventory_hostname].get('vrouter_dbg') | string + ',' if hostvars[inventory_hostname].get('vrouter_dbg') or hostvars[inventory_hostname].get('vrouter_dbg') == 0 else '' }}"
+vr_memory_alloc_checks_str: "{{ 'vr_memory_alloc_checks=' + hostvars[inventory_hostname].get('vr_memory_alloc_checks') | string + ',' if hostvars[inventory_hostname].get('vr_memory_alloc_checks') or hostvars[inventory_hostname].get('vr_memory_alloc_checks') == 0 else '' }}"
+vrouter_module_params: "{{ flow_entries_str + mpls_labels_str + nexthops_str + vrfs_str + macs_str\
+                           + oflow_entries_str + mac_oentries_str + max_interface_entries_str + flow_hold_limit_str + vr_memory_alloc_checks_str+ vrouter_dbg_str }}"
+
+#For bare-metal compute in Debian, make sure  compile_vrouter_module is not true
+compile_vrouter_module_orig: "{{ (contrail_compute_mode == 'bare_metal') | ternary(false, non_bare_metal_vrouter_compile) }}"
+agent_config_orig: "{{ agent_config | default({}) | combine(\
+  {'compile_vrouter_module': compile_vrouter_module_orig,\
+  'vrouter_physical_interface': vrouter_physical_interface,\
+  'gateway_mode': gateway_mode,\
+  'non_mgmt_ip': non_mgmt_ip,\
+  'non_mgmt_gw': non_mgmt_gw,\
+  'priority_id_list': priority_id_list,\
+  'priority_scheduling_list': priority_scheduling_list,\
+  'priority_bandwidth_list': priority_bandwidth_list,\
+  'qos_queue_id_list': qos_queue_id_list,\
+  'qos_logical_queue_list': qos_logical_queue_list,\
+  'qos_default_nic_queue': qos_default_nic_queue,\
+  'qos_priority_tagging': qos_priority_tagging,\
+  'vgw_intf_list': vgw_intf_list,\
+  'vgw_public_subnet_list': vgw_public_subnet_list,\
+  'vgw_public_vn_name_list': vgw_public_vn_name_list,\
+  'vgw_gateway_route_list': vgw_gateway_route_list,\
+  'vrouter_module_params': vrouter_module_params,\
+  'compute_controller_list': compute_controller_list,\
+  'metadata_ssl_enable': metadata_ssl_enable,\
+  })}}"
+
+ceph_controller_config: "{{ ceph_config | default({}) |                        \
+                     combine({'ceph_monname_list': ceph_hostname_list,         \
+                              'ceph_monip_list'  : ceph_controller_list,       \
+                              'cluster_fsid'     : storage_ceph_config.fsid,   \
+                              'mon_key'          : storage_ceph_config.mon_key,\
+                              'adm_key'          : storage_ceph_config.adm_key,\
+                              'osd_key'          : storage_ceph_config.osd_key,\
+                              'ceph_rest_api_port': ceph_rest_api_port,        \
+                              'enable_stats_daemon': enable_stats_daemon       \
+                            }) }}"
+
+controller_group: "{{ groups['contrail-controllers'] | default([]) }}"
+analytics_group: "{{ groups['contrail-analytics'] | default([]) }}"
+analyticsdb_group: "{{ groups['contrail-analyticsdb'] | default([]) }}"
+compute_group: "{{ groups['contrail-compute'] | default([]) }}"
+ceph_controller_group: "{{ groups['ceph-controller'] | default([]) }}"
+
+# By default Kubernetes-api-server is assumed to run on the node where
+# contrail-kube-manager is running. Contrail-kube-manager is co-located
+# with contrail controller.
+kubernetes_api_server_default_list: "{{ controller_ll_ip_list if nested_mode else controller_list }}"
+kubernetes_api_server_default: "{{ kubernetes_api_server_default_list[0] }}"
+kubernetes_api_config:
+  api_server: "{{ kubernetes_api_server if kubernetes_api_server else kubernetes_api_server_default }}"
+  token: "{{ kubernetes_access_token | default('') }}"
+kubernetes_config:
+  cluster_name: "{{ kubernetes_cluster_name | default('k8s-default') }}"
+  cluster_network: "{{ nested_cluster_network|default({})|to_json }}"
+  cluster_project: "{{ kubernetes_cluster_project|to_json }}"
+  service_subnets: "{{ kubernetes_service_subnet }}"
+  pod_subnets: "{{ kubernetes_pod_subnet }}"
+kubernetes_vnc_config:
+  public_fip_pool: "{{ kubernetes_public_fip_pool|to_json }}"
+
+kubernetes_agent_global_config:
+  cloud_orchestrator: "{{ cloud_orchestrator }}"

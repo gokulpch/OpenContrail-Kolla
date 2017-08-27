@@ -1,0 +1,111 @@
+- name: Parse SRIOV configuration
+  set_fact:
+    sriov_intf_list: "{{ sriov_intf_list + [ item.get('interface') ] }}"
+    sriov_physnets_list: "{{ sriov_physnets_list + [ item.get('physnets') | join('%') if item.get('physnets') else '' ] }}"
+  when: item
+  with_items: "{{ sriov_config_openstack_compute }}"
+
+- name: Create SRIOV config strings
+  set_fact:
+      sriov_physnets: "{{  sriov_physnets_list | join(',')  if sriov_physnets_list else '' }}"
+      sriov_interfaces: "{{  sriov_intf_list | join(',')  if sriov_intf_list else '' }}"
+
+- name: create /etc/contrail
+  file: >-
+    path=/etc/contrail
+    state=directory
+
+- name: Create /etc/contrail/ctrl-details
+  template: src=ctrl-details.j2 dest=/etc/contrail/ctrl-details
+
+- name: Configure nova
+  shell: source /etc/contrail/ctrl-details; /opt/contrail/bin/compute-server-setup.sh
+
+# compute-server-setup.sh was not setting up below configs, which caused neutron auth issues while booting a vm
+- name: Configure neutron credentials in nova.conf to fix configuration problem by above command
+  ini_file: dest={{ nova_conf }} section=neutron option={{ item.key }} value={{ item.value }}  create=yes
+  notify: restart nova-compute
+  with_dict:
+    password: "{{ neutron_password }}"
+    project_name: "{{ service_tenant_name }}"
+    admin_tenant_name: "{{ service_tenant_name }}"
+    auth_url: "{{ keystone_auth_protocol }}://{{ keystone_ip }}:{{ keystone_admin_port }}/"
+  when:
+    - openstack_sku == 'newton'
+
+- name: Configure oslo rabbit hosts in nova.conf to fix configuration problem by compute-server-setup
+  ini_file: dest={{ nova_conf }} section=oslo_messaging_rabbit option={{ item.key }} value={{ item.value }}  create=yes
+  notify: restart nova-compute
+  with_dict:
+    rabbit_hosts: "{{ rabbitmq_servers_with_port }}"
+    rabbit_password: "{{ rabbitmq_password }}"
+    rabbit_userid: "{{ rabbitmq_user }}"
+
+# Hack for ocata - placement section is mandatory in ocata
+# compute-server-setup.sh was not setting up below configs, which caused neutron auth issues while booting a vm
+- name: Configure neutron credentials in nova.conf to fix configuration problem by above command
+  ini_file: dest={{ nova_conf }} section=neutron option={{ item.key }} value={{ item.value }}  create=yes
+  notify: restart nova-compute
+  with_dict:
+    url: "{{ neutron_protocol }}://{{ openstack_ip }}:{{ neutron_port }}"
+    metadata_proxy_shared_secret: "{{ neutron_password }}"
+    service metadata_proxy: "true"
+    auth_url: "{{ keystone_auth_protocol }}://{{ keystone_ip }}:{{ keystone_admin_port }}"
+    auth_type: "password"
+    project_domain_name: "default"
+    user_domain_id: "default"
+    project_name: "service"
+    username: "neutron"
+    password: "{{ neutron_password }}"
+  when:
+    - openstack_sku == 'ocata'
+
+- name: Configure the placement section in nova.conf
+  ini_file: dest={{ nova_conf }} section=placement option={{ item.key }} value={{ item.value }}  create=yes
+  notify: restart nova-compute
+  with_dict:
+    auth_type: 'password'
+    auth_url: "{{ keystone_auth_protocol }}://{{ keystone_ip }}:{{ keystone_admin_port }}"
+    username: 'placement'
+    password: "{{ keystone_admin_password }}"
+    project_name: 'service'
+    project_domain_name: 'default'
+    user_domain_name: 'default'
+    os_region_name: "{{ region }}"
+    os_interface: 'internal'
+  when:
+    - openstack_sku == 'ocata'
+
+# Hack for ocata - transport_url is required to talk to nov-conductor in ocata
+- name: Configure the transport_url in nova.conf
+  ini_file: dest={{ nova_conf }} section=DEFAULT option={{ item.key }} value={{ item.value }}  create=yes
+  notify: restart nova-compute
+  with_dict:
+    transport_url: "rabbit://{{ rabbitmq_user }}:{{ rabbitmq_password }}@{{ rabbitmq_server_list[0] }}:{{ rabbitmq_port }}"
+  when:
+    - openstack_sku == 'ocata'
+
+
+# Workaround for bug https://bugs.launchpad.net/juniperopenstack/+bug/1655543
+- name: Copy vrouter-port-control from agent container to compute
+  shell: docker cp agent:/usr/bin/vrouter-port-control /usr/bin/vrouter-port-control
+  args:
+    creates: /usr/bin/vrouter-port-control
+  when: "'contrail-compute' in group_names and contrail_compute_mode != 'bare_metal'"
+
+- name: Configure qemu
+  blockinfile:
+    dest: /etc/libvirt/qemu.conf
+    block: |
+      cgroup_device_acl = [
+       "/dev/null", "/dev/full", "/dev/zero",
+        "/dev/random", "/dev/urandom",
+        "/dev/ptmx", "/dev/kvm", "/dev/kqemu",
+        "/dev/rtc", "/dev/hpet","/dev/net/tun",
+      ]
+  notify: restart libvirt
+
+# Setup live-migration
+- include: live_migration_conf.yml
+  when: live_migration is defined and live_migration == True and ansible_os_family == 'Debian'
+

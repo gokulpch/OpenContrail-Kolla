@@ -1,0 +1,31 @@
+---
+- name: Configure contrailctl/analytics.conf
+  ini_file:
+    dest: "{{ contrailctl_config_directory }}/analytics.conf"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    create: yes
+  with_inidata:
+    GLOBAL: "{{ global_config_orig }}"
+    ANALYTICS: "{{ analytics_config | default({}) }}"
+    ALARM_GEN: "{{ alarm_gen_config | default({}) }}"
+    ANALYTICS_API: "{{ analytics_api_config | default({}) }}"
+    ANALYTICS_COLLECTOR: "{{ analytics_collector_config | default({}) }}"
+    QUERY_ENGINE: "{{ query_engine_config | default({}) }}"
+    SNMP_COLLECTOR: "{{ snmp_collector_config | default({}) }}"
+    TOPOLOGY: "{{ topology_config | default({}) }}"
+    RABBITMQ: "{{ rabbitmq_config | default({}) }}"
+  notify:
+    - check analytics container
+    - contrailctl for analytics
+
+- name: Configure contrailctl/analytics.conf KEYSTONE section
+  ini_file: dest="{{ contrailctl_config_directory }}/analytics.conf" section=KEYSTONE option={{ item.key }} value={{ item.value }}  create=yes
+  with_dict: "{{ keystone_config | default({}) }}"
+  notify:
+    - check analytics container
+    - contrailctl for analytics
+  when: cloud_orchestrator == "openstack"
+
+- meta: flush_handlers

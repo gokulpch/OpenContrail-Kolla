@@ -1,0 +1,66 @@
+---
+- name: sm_status_report - controller_started
+  debug:
+    msg: "controller_started"
+
+- name: set /etc/hosts entry with their conrol-data IP for rabbitmq to work
+  lineinfile: dest=/etc/hosts line="{{ item.key + ' ' + item.value }}"
+  with_dict: "{{ controller_ip_hostname_dict }}"
+  when: controller_ip_hostname_dict
+
+- name: Copy contrail controller image
+  copy:
+    src: "{{ docker_image_load_path }}/{{ contrail_controller_image_archive }}"
+    dest: "/tmp/{{ contrail_controller_image_archive }}"
+  when: docker_registry is not defined or load_contrail_controller_image is defined
+
+- name: "Load contrail controller image"
+  docker_image:
+    name: contrail-controller
+    tag: "{{ contrail_version }}"
+    timeout: "{{ container_image_load_timeout }}"
+    load_path: "/tmp/{{ contrail_controller_image_archive }}"
+  when: docker_registry is not defined or load_contrail_controller_image is defined
+
+- name: Configure contrailctl/controller.conf
+  include: "contrailctl/controller/{{ contrailctl_config_mode }}.yml"
+
+# Copy SSL certs to container
+- include: copy_ssl_certs.yml
+
+# An issue on running command "su" is noticed in some kernel versions in ubuntu 14.04
+# https://github.com/docker/docker/issues/9213 - Workaround for this for now
+- name: "Start contrail controller container for ubuntu 14.0x"
+  docker_container:
+    name: controller
+    image: "{{ controller_image }}"
+    privileged: true
+    network_mode: host
+    state: started
+    pull: "{{ always_pull_image }}"
+    tty: true
+    pid_mode: host
+    restart_policy: unless-stopped
+    capabilities:
+      - AUDIT_WRITE
+    volumes: "{{ contrail_controller_volumes }}"
+  when: ansible_distribution == 'Ubuntu' and ansible_distribution_version == '14.04' and os_release != 'ubuntu16.04'
+
+- name: "Start contrail controller container"
+  docker_container:
+    name: controller
+    image: "{{ controller_image }}"
+    privileged: true
+    network_mode: host
+    state: started
+    pull: "{{ always_pull_image }}"
+    tty: true
+    restart_policy: unless-stopped
+    capabilities:
+      - AUDIT_WRITE
+    volumes: "{{ contrail_controller_volumes }}"
+  when: ansible_distribution_version != '14.04' or os_release == 'ubuntu16.04'
+
+- name: sm_status_report - controller_completed
+  debug:
+    msg: "controller_completed"

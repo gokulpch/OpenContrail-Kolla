@@ -1,0 +1,119 @@
+---
+- name: Setup esxi/vcenter tasks
+  hosts: localhost
+  roles:
+    - name: Run esxi role
+      role: vcenter
+      when: vcenter_servers is defined
+
+- name: Common system settings on base hosts
+  hosts: all
+
+  # docker_required is set to true if the node is running atleast one of
+  # contrail-controller, contrail-analytics, contrail-analyticsdb, contrail-lb,
+  # contrail-compute in 'container' mode.
+  # In other words: set to false on standalone bare_metal computes
+  # NOTE: Change here if you are adding a new group in the inventory that needs
+  # to avoid installing docker-engine
+  pre_tasks:
+    - name: Set flag to decide if docker is required
+      set_fact:
+        docker_required: "{{ false if 'contrail-compute' in group_names and \
+                          contrail_compute_mode != 'container' and \
+                          'contrail-controllers' not in group_names and \
+                          'contrail-analytics' not in group_names and \
+                          'contrail-analyticsdb' not in group_names and \
+                          'contrail-lb' not in group_names and \
+                          'ceph-controller' not in group_names else \
+                          true }}"
+        provision_type: "{{ provision_type | default('') }}"
+
+  roles:
+    - name: Run common code
+      role: common
+    - name: Setup docker engine on nodes
+      role: docker
+      tags: [contrail.containers, contrail.containers.docker]
+      when:
+        - deployment_platform == "docker" and docker_required == true
+        - "'kubernetes-contrail-controllers' not in group_names"
+    - name: Upgrade kernel to the version supplied with this image
+      role: contrail/upgrade_kernel
+      tags: [contrail.upgrade_kernel]
+      when: kernel_upgrade and ansible_os_family == 'Debian'
+    - name: Setup the containers
+      role: node
+      tags: [node]
+
+- name: Setup compute node
+  hosts: contrail-compute
+  roles:
+    - name: Run common code
+      role: common
+    - name: Setup openstack compute in case of openstack
+      role: openstack/compute
+      tags: [openstack.compute]
+      when: cloud_orchestrator == "openstack" and enable_openstack_compute
+    - name: Setup baremetal agent
+      role: contrail/bare_metal_agent
+      tags: [contrail.bare_metal_agent]
+      when:
+        - contrail_compute_mode == 'bare_metal'
+        - provision_type != 'contrail_cloud'
+
+- name: Setup VCenter compute node
+  hosts: contrail-vc-compute
+  roles:
+    - name: Run common code
+      role: common
+    - name: Setup openstack compute in case of openstack
+      role: openstack/compute
+      tags: [openstack.compute]
+      when: cloud_orchestrator == "openstack" and vcenter_compute_mode == "bare_metal"
+
+- name: Register roles with controller API
+  hosts: contrail-controllers
+  roles:
+    - name: Register analytics, analyticsdb and agent with controller API
+      role: contrail/register
+      tags: [contrail.register]
+      when: cloud_orchestrator == 'openstack'
+
+- name: Configure Neutron Plugin on External Openstack Nodes
+  hosts: openstack
+  roles:
+    - name: Configure Neutron Plugin
+      role: neutron_plugin
+      tags: [neutron_plugin]
+      when: cloud_orchestrator == "openstack"
+
+- name: Reboot compute nodes
+  hosts: contrail-compute
+  post_tasks:
+
+    - name: Reboot node
+      shell: sleep 15 && /etc/contrail/contrail_reboot
+      async: 20
+      poll: 0
+      sudo: true
+      ignore_errors: true
+      when:
+        - (contrail_compute_mode == 'bare_metal' or contrail_compute_mode == 'container')
+        - (provision_type == '')
+
+    # Skip this task from being run on the SM Lite node itself to avoid timing issues with Reboot
+    - name: Waiting for server to come back
+      local_action: wait_for port=22 host={{ inventory_hostname }} state=started delay=30 timeout=600
+      sudo: false
+      when:
+        - (contrail_compute_mode == 'bare_metal' or contrail_compute_mode == 'container')
+        - (provision_type == '')
+
+- name: Setup ceph compute node
+  hosts: ceph-compute
+  roles:
+    - name: Run common code
+      role: common
+    - name: Setup ceph compute
+      role: storage/ceph_compute
+      tags: [storage.ceph_compute]

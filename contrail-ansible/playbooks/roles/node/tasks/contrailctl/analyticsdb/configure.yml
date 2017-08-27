@@ -1,0 +1,25 @@
+---
+- name: Configure contrailctl/analyticsdb.conf
+  ini_file:
+    dest: "{{ contrailctl_config_directory }}/analyticsdb.conf"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    create: yes
+  with_inidata:
+    GLOBAL: "{{ global_config_orig }}"
+    ANALYTICSDB: "{{ analyticsdb_config | default({}) }}"
+    CASSANDRA: "{{ cassandra_config | default({}) }}"
+  notify:
+    - check analyticsdb container
+    - contrailctl for analyticsdb
+
+- name: Configure contrailctl/analyticsdb.conf KEYSTONE section
+  ini_file: dest="{{ contrailctl_config_directory }}/analyticsdb.conf" section=KEYSTONE option={{ item.key }} value={{ item.value }}  create=yes
+  with_dict: "{{ keystone_config | default({}) }}"
+  notify:
+    - check analyticsdb container
+    - contrailctl for analyticsdb
+  when: cloud_orchestrator == "openstack"
+
+- meta: flush_handlers

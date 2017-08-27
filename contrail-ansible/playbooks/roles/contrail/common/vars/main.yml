@@ -1,0 +1,70 @@
+---
+# This will construct a string with space delimited list of cassandra server ip and port in form of
+# "<ip1>:<port> <ip2>:port". i.e "10.0.0.11:9160 10.0.0.12:9160 10.0.0.3:9160"
+configdb_servers_with_port: "{{ configdb_server_list | map('regex_replace', '^(.*)$', '\\1:' + configdb_port|string) | join(' ') }}"
+
+# This will construct a string with space delimited list of cassandra server ip and cql port in form of
+# "<ip1>:<port> <ip2>:port". i.e "10.0.0.11:9041 10.0.0.12:9041 10.0.0.3:9041"
+configdb_servers_with_cql_port: "{{ configdb_server_list | map('regex_replace', '^(.*)$', '\\1:' + configdb_cql_port|string) | join(' ') }}"
+
+# This will construct a string with comma delimited list of all zookeeper server and port in form of "ip1:port, ip2:port"
+zk_servers_with_port: "{{ zk_server_list | map('regex_replace', '^(.*)$', '\\1:' + zk_port|string) | join(',') }}"
+zk_servers_with_port_space_delim: "{{ zk_servers_with_port | regex_replace(',', ' ') }}"
+
+# This will construct a string with comma delimited list of all rabbitmq server and port in form of "ip1:port, ip2:port"
+rabbitmq_servers_with_port: "{{ rabbitmq_server_list | map('regex_replace', '^(.*)$', '\\1:' + rabbitmq_port|string) | join(',') }}"
+rabbitmq_servers_with_port_space_delim: "{{ rabbitmq_servers_with_port | regex_replace(',', ' ') }}"
+
+# This will construct a string with space delimited list of kafka server ip and port in form of
+# "<ip1>:<port> <ip2>:port". i.e "10.0.0.11:9160 10.0.0.12:9160 10.0.0.3:9160"
+kafka_brokers_with_port: "{{ kafka_broker_list | map('regex_replace', '^(.*)$', '\\1:' + kafka_port|string) | join(' ') }}"
+
+# This will construct a string with space delimited list of cassandra server ip and port in form of
+# "<ip1>:<port> <ip2>:port". i.e "10.0.0.11:9042 10.0.0.12:9042 10.0.0.3:9042"
+analyticsdb_servers_with_cql_port: "{{ analyticsdb_list | map('regex_replace', '^(.*)$', '\\1:' + analyticsdb_cql_port|string) | join(' ') }}"
+
+analytics_collectors_with_port: "{{ analytics_list | map('regex_replace', '^(.*)$', '\\1:' + analytics_collector_port|string) | join(' ') }}"
+control_servers_with_xmpp_port: "{{ control_node_list | map('regex_replace', '^(.*)$', '\\1:' + control_xmpp_port|string) | join(' ') }}"
+control_servers_with_dns_port: "{{ control_node_list | map('regex_replace', '^(.*)$', '\\1:' + control_dns_port|string) | join(' ') }}"
+api_servers_with_port: "{{ controller_list | map('regex_replace', '^(.*)$', '\\1:' + api_server_port|string) | join(' ') }}" 
+collectors_with_space_delim: "{{ analytics_list | join(' ') }}"
+controllers_with_space_delim: "{{ controller_list | join(' ') }}"
+
+api_server_url: "{{ apiserver_auth_protocol }}://{{ api_server_ip }}:{{ api_server_port }}"
+
+provision_auth: "{% if cloud_orchestrator == 'openstack' %}keystone{% else %}noauth{% endif %}"
+
+# vnc api client input file's global configuration
+global_vnc_api_configs:
+  WEB_SERVER: "{{ controller_ip }}"
+  WEB_PORT: "{{ api_server_port }}"
+  BASE_URL: "/"
+
+# vnc api client input file's auth configuration
+keystone_admin_auth_url: "{{ keystone_auth_protocol }}://{{ keystone_ip }}:{{ keystone_admin_port }}/{{ keystone_version }}"
+auth_vnc_api_configs:
+  AUTHN_TYPE: "keystone"
+  AUTHN_PROTOCOL: "{{ keystone_auth_protocol }}"
+  AUTHN_SERVER: "{{ keystone_ip }}"
+  AUTHN_PORT: "{{ keystone_admin_port }}"
+  AUTHN_URL: "/{{ keystone_version }}/tokens"
+
+systemd_wants_locations:
+  - /lib/systemd/system/multi-user.target.wants/*
+  - /lib/systemd/system/local-fs.target.wants/*
+  - /lib/systemd/system/sockets.target.wants/*udev*
+  - /lib/systemd/system/sockets.target.wants/*initctl*
+  - /lib/systemd/system/basic.target.wants/*
+  - /lib/systemd/system/anaconda.target.wants/*
+  - /lib/systemd/system/plymouth*
+  - /lib/systemd/system/systemd-update-utmp*
+
+contrail_service_mgr: "{{ 'systemd' if ansible_distribution + ansible_distribution_version == 'Ubuntu16.04' else 'supervisord' }}"
+
+my_controller_ip: "{{ controller_list | intersect(ansible_all_ipv4_addresses)|first }}"
+my_analytics_ip: "{{ analytics_list | intersect(ansible_all_ipv4_addresses)|first }}"
+my_analyticsdb_ip: "{{ analyticsdb_list | intersect(ansible_all_ipv4_addresses)|first }}"
+my_compute_ip: "{{ compute_list | intersect(ansible_all_ipv4_addresses)|first }}"
+
+nova_compute_service: "{{'openstack-nova-compute' if ansible_distribution == 'CentOS' else 'nova-compute'}}"
+libvirt_service: "{{'libvirtd' if ansible_distribution == 'CentOS' else 'libvirt-bin'}}"

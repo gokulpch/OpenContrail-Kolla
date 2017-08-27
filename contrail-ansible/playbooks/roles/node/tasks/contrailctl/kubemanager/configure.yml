@@ -1,0 +1,28 @@
+---
+- name: Set Kubernetes Api Server Ip.
+  set_fact:
+    kubernetes_api_server: "{{ kubernetes_api_server_default }}"
+  when: kubernetes_api_server is not defined
+
+- name: Configure contrailctl/kubemanager.conf
+  ini_file:
+    dest: "{{ contrailctl_config_directory }}/kubemanager.conf"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    create: yes
+  with_inidata:
+    GLOBAL: "{{ global_config_orig }}"
+    KUBERNETES: "{{ kubernetes_api_config | combine(kubernetes_config) }}"
+    KUBERNETES_VNC: "{{ kubernetes_vnc_config | default({}) }}"
+    AUTH: "{{ keystone_config | default({}) }}"
+
+- name: Override keystone IP in contrailctl/kubemanager.conf with generated linklocal ip, in nested mode.
+  ini_file: dest="{{ contrailctl_config_directory }}/kubemanager.conf" section=AUTH option=ip value={{ keystone_link_local_ip }}  create=yes
+  when:
+    - nested_mode
+    - keystone_link_local_ip is defined
+
+- name: Set nested mode flag in config file, when nested mode is defined. 
+  ini_file: dest="{{ contrailctl_config_directory }}/kubemanager.conf" section=GLOBAL option=nested_mode value=True  create=yes
+  when: nested_mode

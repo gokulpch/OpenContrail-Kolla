@@ -1,0 +1,197 @@
+###################################################
+# Docker configurations
+##
+# docker registry
+docker_registry: "gokulpch"
+docker_registry_insecure: True
+
+# install docker from package rather than installer from get.docker.com which is default method
+docker_install_method: package
+
+###################################################
+# Ansible specific vars
+##
+
+# ansible connection details
+ansible_user: root
+ansible_become: true
+# ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+###################################################
+# Common settings for contrail
+##
+
+# contrail_compute_mode - the values are bare_metal to have bare_metal agent setup and "container" for agent container
+# default is bare_metal
+contrail_compute_mode: container
+
+# os_release - operating system release - ubuntu 14.04 - ubuntu14.04, ubuntu 16.04 - ubuntu16.04, centos 7.1 - centos7.1, centos 7.2 - centos7.2
+os_release: ubuntu16.04
+
+# contrail version
+contrail_version: 4.0.1.0-12
+
+# cloud_orchestrator - cloud orchestrators to be setup
+# Valid cloud orchestrators:
+# kubernetes, mesos, openstack, openshift
+cloud_orchestrator: openstack
+
+# vrouter physical interface
+vrouter_physical_interface: ens3
+
+# custom image for kube-manager - image with ubuntu 16.04 and systemd
+# contrail_kube_manager_image: 10.84.34.155:5000/contrail-kube-manager-u16.04:4.0.0.0-3016
+
+# custom image for mesos-manager - image with ubuntu 16.04 and systemd
+# contrail_mesos_manager_image: 10.84.34.155:5000/contrail-mesos-manager-u16.04:4.0.0.0-3016
+
+
+# controller_ip can be load ballanced IP, or one of the controller_list
+# if not configured, ansible use first ip address from [contrail-controllers]
+# controller_ip: 192.168.0.22
+
+##################
+# Below config params (i.e the variables named .*_config) are used to configure contrailctl
+# All of below variables are a dict which form individual section of contrailctl/*.conf (controller.conf, agent.conf, etc)
+# they are just a dictionary form of config files found under contrailctl/*
+# Please refer examples/fully_commented_inventory for full list of variables available
+###################
+
+# global_config: controller_list, analytics_list, analyticsdb_list etc would be automatically detected by ansible code based out of hosts file host group sections
+#  e.g controller_list is all ips added under [contrail-controllers]
+#   This vars will be configured in [GLOBAL] section of all contrailctl config files (contrailctl/*.conf)
+
+# global_config:
+global_config: { external_rabbitmq_servers: 10.87.1.49 }
+rabbitmq_config: { user: openstack, password: contrail1 }
+
+# To configure custom webui http port
+# webui_config: {http_listen_port: 8085}
+
+###################################################
+# Openstack specific configuration
+##
+# contrail_install_packages_url: "http://10.84.5.120/github-build/mainline/3023/ubuntu-14-04/mitaka/contrail-install-packages_4.0.0.0-3023~mitaka_all.deb"
+keystone_config: {ip: 10.87.1.49, admin_password: contrail1, auth_protocol: http}
+
+# Link-Local Metadata Service
+# By default server manager will retrieve metadata_proxy_secret from openstack node
+# openstack nova.conf and contrail-vrouter-agent.conf will have same value for metadata_proxy_secret
+# neutron_config = { 'metadata_proxy_secret': 'contrail123', }
+
+###################################################
+# SSL Cert Configuration (Path to copy SSL certs to containers/bare metal)
+# User has to generate the certificates with following name for each server in the cluster and
+# keep it under the path the specified in sl_certs_src_dir directory accessible to ansible
+# ssl_ca Name: ca-cert.pem
+# ssl_cert Name: <hostname>.pem
+# ssl_key Name: <hostname>-privkey.pem
+#
+#ssl_certs_src_dir=/etc/contrail_smgr/puppet/ssl
+
+###################################################
+# XMPP Auth Configuration
+#xmpp_auth_enable=false
+#xmpp_dns_auth_enable=false
+
+# Sandesh SSL Enable/Disable
+#sandesh_ssl_enable=false
+
+# Introspect SSL Enable/Disable
+#introspect_ssl_enable=false
+
+# Haproxy SSL termination for api-server
+# apiserver_auth_protocol - https or http Default: True
+# apiserver_insecure - Boolean Default: False
+#
+# apiserver_auth_protocol=http
+# apiserver_insecure=False
+
+# Metadata Service SSL Enable/Disable
+# metadata_ssl_enable: false
+
+# toragent configuration
+#tor_agent : { '10.204.216.34': [ {'tor_ip': '10.204.221.35', 'tor_agent_id': '1', 'tor_tsn_ip': '10.204.221.33', 'tor_ovs_port': '9999', 'tor_ovs_protocol': 'tcp', 'tor_name': 'contrail-tor-1', 'tor_http_server_port': '9090', 'tor_vendor_name': 'Juniper', 'tor_tsn_name':'tsn1', 'tor_agent_ovs_ka': '1000', 'tor_agent_name':'agent1', 'tor_tunnel_ip':'10.204.216.54', 'tor_product_name':'qfx1'} , {'tor_ip': '10.204.221.35', 'tor_agent_id': '2', 'tor_tsn_ip': '10.204.221.33', 'tor_ovs_port': '9999', 'tor_ovs_protocol': 'tcp', 'tor_name': 'contrail-tor-2', 'tor_http_server_port': '9090', 'tor_vendor_name': 'Juniper', 'tor_tsn_name':'tsn2', 'tor_agent_ovs_ka': '1000','tor_agent_name':'agent2', 'tor_tunnel_ip':'10.204.216.55', 'tor_product_name':'qfx2'}] }
+
+# Qos queueing configuration, define in a single line.
+#qos:  {
+#       '192.168.0.25': [ {'hardware_q_id': '3', 'logical_queue':['1', '6-10', '12-15']},
+#                         {'hardware_q_id': '5', 'logical_queue':['2']},
+#                         {'hardware_q_id': '8', 'logical_queue':['3-5']},
+#                         {'hardware_q_id': '1', 'default': 'True'}],
+#       '192.168.0.26': [ {'hardware_q_id': '2', 'logical_queue':['1', '3-8', '10-15']},
+#                         {'hardware_q_id': '6', 'logical_queue':['17-20'], 'default': 'True'}]
+#       }
+
+# Qos scheduling configuration, define in a single line.
+#qos_niantic:  {
+#       '192.168.0.25': [ { 'priority_id': '1', 'scheduling': 'strict', 'bandwidth': '0'},
+#                         { 'priority_id': '2', 'scheduling': 'rr', 'bandwidth': '20'},
+#                         { 'priority_id': '3', 'scheduling': 'rr', 'bandwidth': '10'}],
+#       '192.168.0.26' :[ { 'priority_id': '1', 'scheduling': 'strict', 'bandwidth': '0'},
+#                         { 'priority_id': '1', 'scheduling': 'rr', 'bandwidth': '30'}]
+#               }
+
+# Kubernetes cluster configuration
+##
+
+# The IP subnet reserved for use by kubernetes for internal cluster management
+# and housekeeping.
+#nested_cluster_private_network: "<cluster-private-CIDR>"
+
+# Name of the kubernetes cluster being provisioned.
+#kubernetes_cluster_name:<cluster-name>
+
+# Virtual Network in which the Kubernetes cluster should be provisioned.
+#nested_cluster_network: {domain: <name>, project: <name>, name: <name>}
+
+# Access token to connect to Kuberenetes API server.
+#kubernetes_access_token: <token>
+
+# Kubernetes cluster is nested within an Openstack cluster.
+#nested_mode: true
+
+# Kubernetes FloatingIpPool to be used for service/ingress.
+# Example:kubernetes_public_fip_pool: {domain: domain-name, project: project-name, network: network-name, name: fip-pool-name}
+#
+#kubernetes_public_fip_pool: {domain: <>, project: <>, network: <>, name: <>}
+
+# Kubernetes cluster project fq-name.
+# Example: kubernetes_cluster_project: {domain: domain-name, project: project-name}
+#
+#kubernetes_cluster_project: {domain: <>, project: <>}
+
+# Kubernetes pod subnet.
+# If not configured, default value of 10.32.0.0/12 is used.
+#
+#kubernetes_pod_subnet: "10.32.0.0/12"
+
+# Kubernetes service subnet
+# If not configured, default value of 10.96.0.0/12 is used.
+#
+#kubernetes_service_subnet: "10.96.0.0/12"
+
+# Kubernetes: Node where kubernetes-api server is running.
+# Example: kubernetes_api_server: 10.84.27.16
+#
+# kubernetes_api_server: 192.168.0.22
+
+#OPTIONAL Virtual gateway CONFIGURATION
+#=======================================
+
+#Section vgw is only relevant when you want to use virtual gateway feature.
+#You can use one of your compute node as  gateway .
+
+#Definition for the Key used
+#-------------------------------------
+#vn: Virtual Network fully qualified name. This particular VN will be used by VGW.
+#ipam_subnets: Subnets used by vn. It can be single or multiple
+#gateway_routes: If any route is present then only those routes will be published
+#by VGW or Default route (0.0.0.0) will be published
+# Below vgw definition should be in single line.
+
+#vgw :  {
+#   '192.168.0.25': {'vgw1':{'vn':'default-domain:admin:public:public', 'ipam_subnets': ['10.204.220.128/29', '10.204.220.136/29'], 'gateway_routes': ['8.8.8.0/24', '1.1.1.0/24'] },
+#                   'vgw2':{'vn':'default-domain:admin:public1:public1', 'ipam_subnets': ['10.204.220.144/29']}},
+#   '192.168.0.26': {'vgw2':{'vn':'default-domain:admin:public1:public1', 'ipam_subnets': ['10.204.220.144/29']}}
+#       }

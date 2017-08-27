@@ -1,0 +1,11 @@
+---
+- name: Install contrail cni package
+  package: name="{{ contrail_cni_package_name }}" state=present
+
+- name: Make sure cni directories exist
+  file: path="{{ item }}" state=directory recurse=true
+  with_items:
+    - /var/log/contrail/cni
+    - /etc/cni/net.d
+    - /opt/cni/bin
+    - /var/lib/contrail/ports/vm

@@ -1,0 +1,182 @@
+---
+- name: Parse qos niantic configuration
+  set_fact:
+    priority_id_list: "{{ priority_id_list + [ item.get('priority_id') ] }}"
+    priority_scheduling_list: "{{ priority_scheduling_list + [ item.get('scheduling') ] }}"
+    priority_bandwidth_list: "{{ priority_bandwidth_list + [ item.get('bandwidth') ] }}"
+  when: item
+  with_items: "{{ priority_config_compute }}"
+
+- name: Form qos niantic command line arguments
+  set_fact:
+    priority_id_config: "{{ '--priority_id ' + priority_id_list | join(' ')  if priority_id_list else '' }}"
+    priority_scheduling_config: "{{ '--priority_scheduling ' + priority_scheduling_list | join(' ') if priority_scheduling_list else '' }}"
+    priority_bandwidth_config: "{{ '--priority_bandwidth ' + priority_bandwidth_list | join(' ') if priority_bandwidth_list else '' }}"
+
+- name: Parse qos configuration
+  set_fact:
+    qos_queue_id_list: "{{ qos_queue_id_list + [ item.get('hardware_q_id') ] }}"
+    qos_logical_queue_list: "{{ qos_logical_queue_list  + [ item.get('logical_queue') | join(';') | regex_replace(' ','') | regex_replace(';',',') ] }}"
+  with_items: "{{ qos_config_compute }}"
+  when:
+    - item
+    - "'default' not in item.keys()"
+
+- name: Parse default queue qos configuration
+  set_fact:
+    default_nic_queue: "{{ [item] }}"
+    qos_queue_id_list: "{{ qos_queue_id_list + [ item.get('hardware_q_id') ] }}"
+  with_items: "{{ qos_config_compute }}"
+  when:
+    - item
+    - "'default' in item.keys()"
+
+- name: Parse logical queue mapping for default queue
+  set_fact:
+    qos_logical_queue_list: "{{ qos_logical_queue_list  + [ item.get('logical_queue') | join(';') | regex_replace(' ','') | regex_replace(';',',') ] }}"
+  with_items: "{{ default_nic_queue }}"
+  when:
+    - item
+    - "'logical_queue' in item.keys()"
+
+- name: Form qos command line arguments
+  set_fact:
+    default_hw_queue: "{{ '--default_hw_queue_qos' if default_nic_queue else ''}}"
+    qos_queue_id_config: "{{ '--qos_queue_id ' + qos_queue_id_list | join(' ') if qos_queue_id_list else ''}}"
+    qos_logical_queue_config: "{{ '--qos_logical_queue ' + qos_logical_queue_list | join(' ') if qos_logical_queue_list else ''}}"
+
+- name: Parse SRIOV configuration
+  set_fact:
+    sriov_interface_list: "{{ sriov_interface_list + [ item.get('interface') ] }}"
+    sriov_vf_list: "{{ sriov_vf_list + [ item.get('VF') ] }}"
+  when: item
+  with_items: "{{ sriov_config_compute }}"
+
+- name: Create SRIOV input string - Part one
+  set_fact:
+      sriov_config_list: "{{ sriov_config_list + [ item.0 + ':' + item.1 ] }}"
+  with_together:
+    - "{{ sriov_interface_list }}"
+    - "{{ sriov_vf_list }}"
+
+- name: Create SRIOV input string - Part two
+  set_fact:
+      sriov_config: "{{ '--sriov ' + sriov_config_list | join(',')  if sriov_config_list else '' }}"
+
+- include: vgw_facts.yml
+  tags: always
+
+- include: vcenter_facts.yml
+  tags: always
+  when: hostvars[inventory_hostname].get('esxi_host')
+
+- name: "Run contrail-compute-setup script, logs at /var/log/contrail/contrail_vrouter_provisioning.log --- {{vc_orchestrator_config}}"
+
+  shell: "contrail-compute-setup --cfgm_ip {{ config_ip }} \
+          --keystone_ip {{ keystone_ip }} \
+          --self_ip {{ my_compute_ip }} {{ multi_intf_ip_config }} \
+          {{ multi_intf_gw_config }} \
+          --hypervisor {{ hypervisor }} \
+          --keystone_auth_protocol {{ keystone_auth_protocol }} \
+          --keystone_auth_port {{ keystone_admin_port }} \
+          --keystone_admin_user {{ keystone_admin_user }} \
+          --keystone_admin_password {{ keystone_admin_password }} \
+          --keystone_admin_tenant_name {{ keystone_admin_tenant }} \
+          {{ tsn_mode_enabled }} \
+          {{ qos_queue_id_config }} \
+          {{ qos_logical_queue_config }} \
+          {{ default_hw_queue }} \
+          {{ qos_priority_tagging_config }} \
+          {{ priority_id_config }} \
+          {{ priority_scheduling_config }} \
+          {{ priority_bandwidth_config }} \
+          {{ control_nodes_arg }} \
+          {{ collectors_arg }} \
+          {{ xmpp_auth_flag }} \
+          {{ xmpp_dns_auth_flag }} \
+          {{ sandesh_ssl_flag }} \
+          {{ introspect_ssl_flag }} \
+          {{ sriov_config }} \
+          {{ vgw_public_subnet_config }} \
+          {{ vgw_public_vn_name_config }} \
+          {{ vgw_intf_list_config }} \
+          {{ vgw_gateway_routes_config }} \
+          {{ vrouter_module_param_args }} \
+          {{ gateway_mode_config }} \
+          {{ dpdk_config }} \
+          {{ metadata_proxy_secret_config }} \
+          {{ vc_orchestrator_config }} \
+          {{ metadata_use_ssl }}"
+
+- name: Display all variables/facts known for a host
+
+  vars:
+      tor_agent_list_debug: "{{ tor_agent.get(ansible_default_ipv4.address) }}"
+
+  debug: msg = "tor entry is {{ item }}"
+  when: item
+  with_items: "{{ tor_agent_list_debug }}"
+
+- name: Get the tor_agent_list
+  set_fact:
+    tor_agent_list: "{{ tor_agent.get(ansible_default_ipv4.address) }}"
+
+- name: Run contrail-toragent-setup script, logs at /var/log/contrail/contrail_vrouter_provisioning.log
+
+  shell: "contrail-toragent-setup  --cfgm_ip {{ config_ip }} \
+            --self_ip {{ my_compute_ip }} {{ multi_intf_ip_config }} \
+            --authserver_ip {{ openstack_ip }} \
+            --admin_user {{ keystone_admin_user }} \
+            --admin_password {{ keystone_admin_password }} \
+            --admin_tenant_name {{ keystone_admin_tenant }} \
+            --auth_protocol {{ keystone_auth_protocol }} \
+            --tor_name {{ item.tor_name }} \
+            {{'--http_server_port ' + item.get('tor_agent_http_server_port') if item.get('tor_agent_http_server_port') else ''}} \
+            --tor_ip {{ item.tor_ip }} \
+            --tor_id {{ item.tor_agent_id }} \
+            --tor_ovs_port {{ item.tor_ovs_port }} \
+            --tsn_ip {{ item.tor_tsn_ip }} \
+            --tor_ovs_protocol {{ item.tor_ovs_protocol }} \
+            --tor_vendor_name {{ item.tor_vendor_name }} \
+            --tor_tsn_name {{ item.tor_tsn_name }} \
+            {{'--tor_agent_ovs_ka '+ item.get('tor_agent_ovs_ka') if item.get('tor_agent_ovs_ka') else ''}} \
+            {{'--tor_agent_name '+ item.get('tor_agent_name') if item.get('tor_agent_name') else ''}} \
+            --tor_tunnel_ip  {{ item.tor_tunnel_ip }} \
+            {{'--tor_product_name '+ item.get('tor_product_name') if item.get('tor_product_name') else ''}} \
+            {{ control_nodes_arg }} \
+            {{ collectors_arg }}"
+  when: item
+  with_items: "{{ tor_agent_list }}"
+
+- name: Get the list of tor id's
+  set_fact:
+    tor_id_list: "{{ tor_id_list + [ item.tor_agent_id ] }}"
+  when: item
+  with_items: "{{ tor_agent_list }}"
+
+- name: Get tor_id config list
+  set_fact:
+    tor_id_config: "{{ '--tor_id_list ' +  tor_id_list | join(' ')  if tor_id_list else '' }}"
+
+- name: Run Cleaup Script to audit the tor_id to be deleted
+  shell: "contrail-toragent-cleanup  --cfgm_ip {{ config_ip }} \
+            --self_ip {{ my_compute_ip }} {{ multi_intf_ip_config }} \
+            --authserver_ip {{ openstack_ip }} \
+            --admin_user {{ keystone_admin_user }} \
+            --admin_password {{ keystone_admin_password }} \
+            --admin_tenant_name {{ keystone_admin_tenant }} \
+            --auth_protocol {{ keystone_auth_protocol }} \
+            {{ tor_id_config }}"
+
+- name: Restart supervisor-vrouter for ISSU case in non dpkd sriov env
+  shell: service supervisor-vrouter stop && modprobe -r vrouter && service supervisor-vrouter start
+  when:
+    - (provision_type == 'ISSU')
+    - (not dpdk_mode)
+    - (not sriov_interface_list)
+
+- name: Restart supervisor-vrouter for ISSU case in dpdk sriov env
+  service: name=supervisor-vrouter state=restarted
+  when:
+    - (provision_type == 'ISSU')
+    - (dpdk_mode or sriov_interface_list)

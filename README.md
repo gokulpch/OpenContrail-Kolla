@@ -1,2 +1,2 @@
 # OpenContrail-Kolla
-OpenContrail-Ansible with Openstack Kolla
+OpenContrail Containers with Openstack Kolla

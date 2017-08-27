@@ -1,0 +1,44 @@
+---
+contrail_extensions: "ipam:neutron_plugin_contrail.plugins.opencontrail.contrail_plugin_ipam.NeutronPluginContrailIpam,policy:neutron_plugin_contrail.plugins.opencontrail.contrail_plugin_policy.NeutronPluginContrailPolicy,route-table:neutron_plugin_contrail.plugins.opencontrail.contrail_plugin_vpc.NeutronPluginContrailVpc,contrail:None"
+nova_conf: /etc/nova/nova.conf
+contrail_compute_mode: "container"
+rabbitmq_password: "{{ rabbitmq_config.get('password','guest') if rabbitmq_config is defined else 'guest' }}"
+rabbitmq_user: "{{ rabbitmq_config.get('user','guest') if rabbitmq_config is defined else 'guest' }}"
+
+# Contrail and Openstack HA defaults
+internal_vip: ""
+external_vip: ""
+contrail_internal_vip: ""
+
+#DPDK defaults
+dpdk_huge_pages: "{{ hostvars[inventory_hostname].get('huge_pages') | default('')}}"
+dpdk_coremask: "{{ hostvars[inventory_hostname].get('coremask') | default('')}}"
+dpdk_mode: "{{ true if dpdk_huge_pages else false }}"
+dpdk_interface: "{{ ctrl_physical_interface if dpdk_huge_pages else '' }}"
+
+#SRIOV defaults
+sriov: {}
+sriov_config_openstack_compute: "{{ sriov.get(ansible_default_ipv4.address) }}"
+sriov_intf_list: []
+sriov_physnets_list: []
+sriov_physnets: ""
+sriov_interfaces: ""
+libvirtd_conf: /etc/libvirt/libvirtd.conf
+libvirt_bin_conf: /etc/init/libvirt-bin.conf
+libvirt_aa_helper: /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
+libvirt_qemu_abs: /etc/apparmor.d/abstractions/libvirt-qemu
+
+#tsn defaults
+tsn_node: "{{ hostvars[inventory_hostname].get('tsn_mode') | default('False')}}"
+
+nova_compute_pkgs_default:
+  - contrail-setup
+  - nova-compute
+
+nova_compute_pkgs_redhat:
+  - contrail-setup
+  - openstack-nova-compute
+  - contrail-vrouter-agent
+
+nova_compute_pkgs: "{{nova_compute_pkgs_redhat if ansible_os_family == 'RedHat' else nova_compute_pkgs_default}}"
+

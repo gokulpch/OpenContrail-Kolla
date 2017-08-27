@@ -1,0 +1,168 @@
+---
+# python-paramiko and ecdsa installed as workaround for bug https://bugs.launchpad.net/juniperopenstack/+bug/1669918
+# contrail-vrouter-dkms installed as workaround for bug https://bugs.launchpad.net/juniperopenstack/+bug/1664421
+kernel_version: "{{ '4.4.0-38' if ansible_distribution + ansible_distribution_version == 'Ubuntu16.04' else '3.13.0-106' }}"
+kernel_upgraded: false
+
+default_kernel_compute_packages:
+  - contrail-vrouter-dkms
+  - contrail-vrouter-common
+
+upgrade_kernel_vrouter_packages:
+  - "contrail-vrouter-{{ kernel_version }}-generic"
+  - contrail-vrouter-common
+
+dpdk_compute_packages:
+  - contrail-vrouter-dpdk-init
+  - contrail-vrouter-common
+
+lbaas_packages:
+  - haproxy
+
+vrouter_physical_interface: "{{ ctrl_physical_interface }}"
+
+vrouter_physical_ansible_interface: "ansible_{{ vrouter_physical_interface | regex_replace('-', '_') }}"
+vhost_interface: vhost0
+
+# vhost_ansible_interface is ansible_{{vhost_interface}} in case of vhost0 is
+# added, otherwise it is vrouter_physical_ansible_interface
+vhost_ansible_interface: "{{ 'ansible_' + vhost_interface if vhost_interface in ansible_interfaces else vrouter_physical_ansible_interface }}"
+
+vhost_address: "{{ hostvars[inventory_hostname][vhost_ansible_interface]['ipv4']['address'] }}"
+vhost_gateway: "{{ hostvars[inventory_hostname].get('ctrl_data_gw') | default('') }}"
+
+non_mgmt_ip_config: "--non_mgmt_ip {{ vhost_address }}"
+single_intf_config: ""
+multi_intf_ip_config: "{{ non_mgmt_ip_config if vhost_address != ansible_default_ipv4.address else single_intf_config }}"
+multi_intf_gw_config: "{{ '--non_mgmt_gw ' + vhost_gateway if vhost_gateway else '' }}"
+no_of_controllers: "{{ controller_list | length }}"
+vrouter_max_control_nodes: 3
+contrail_compute_mode: "bare_metal"
+hypervisor: "{{ 'vmware' if cloud_orchestrator == 'vcenter' else 'libvirt' }}"
+vc_orchestrator_config: ""
+
+ssl_certs_dir: "/etc/contrail/ssl"
+xmpp_auth_enable: False
+xmpp_dns_auth_enable: False
+sandesh_ssl_enable: False
+introspect_ssl_enable: False
+vrouter_agent_conf: "/etc/contrail/contrail-vrouter-agent.conf"
+
+# contrail-coompute-setup args and flags
+xmpp_auth_flag: "{{ '--xmpp_auth_enable' if xmpp_auth_enable else '' }}"
+xmpp_dns_auth_flag: "{{ '--xmpp_dns_auth_enable' if xmpp_dns_auth_enable else '' }}"
+collectors_arg: "{{ '--collectors ' + collectors_with_space_delim }}"
+compute_controller_list: ''
+control_nodes_arg: "{{ '--control-nodes ' + compute_controller_list if compute_controller_list else '--control-nodes ' + controllers_with_space_delim }}"
+sandesh_ssl_flag: "{{ '--sandesh_ssl_enable' if sandesh_ssl_enable else '' }}"
+introspect_ssl_flag: "{{ '--introspect_ssl_enable' if introspect_ssl_enable else '' }}"
+
+# Dpdk defaults
+dpdk_huge_pages: "{{ hostvars[inventory_hostname].get('huge_pages') | default('')}}"
+dpdk_coremask: "{{ hostvars[inventory_hostname].get('coremask') | default('')}}"
+dpdk_coremask_string: >-
+    {#- Handle the case where coremask is set as "0x13" -#}
+    {%- if dpdk_coremask|int(-1) != -1  -%}
+      "{{ '0x%x'|format(dpdk_coremask|int(0)) }}"
+    {#- Handle the case where coremask is set as "0,3" -#}
+    {%- elif dpdk_coremask is iterable() and dpdk_coremask is not string() -%}
+      "{{ '%s'|format(dpdk_coremask|join(',')) }}"
+    {#- Handle the case where coremask is set as "0,3-5,7-9" -#}
+    {%- elif dpdk_coremask is string() -%}
+      "{{ '%s'|format(dpdk_coremask) }}"
+    {%- else -%}
+      ""
+    {%- endif -%}
+dpdk_uio_driver: "{{ hostvars[inventory_hostname].get('uio_driver') | default('')}}"
+
+mandatory_dpdk_params: "{{ 'coremask=' + dpdk_coremask_string + ',huge_pages=' + dpdk_huge_pages if dpdk_huge_pages else '' }}"
+optional_dpdk_params: "{{ ',uio_driver=' + dpdk_uio_driver if dpdk_uio_driver else '' }}"
+dpdk_params: "{{ mandatory_dpdk_params + optional_dpdk_params }}"
+dpdk_config: "{{ '--dpdk ' + dpdk_params if dpdk_params else '' }}"
+
+# compute packages
+kernel_installed: "{{ true if kernel_version_installed == kernel_version else false }}"
+kernel_compute_packages: "{{ upgrade_kernel_vrouter_packages if kernel_upgraded or kernel_installed else default_kernel_compute_packages }}"
+compute_packages_to_install: "{{ dpdk_compute_packages if dpdk_config else kernel_compute_packages }}"
+compute_packages_redhat:
+ - contrail-vrouter-common
+ - contrail-vrouter
+ - contrail-vrouter-init
+compute_packages_default: "{{ compute_packages_to_install + lbaas_packages if enable_lbaas else compute_packages_to_install }}"
+compute_packages: "{{ compute_packages_redhat if ansible_os_family == 'RedHat' else compute_packages_default }}"
+
+#SRIOV defaults
+sriov: {}
+sriov_config_compute: "{{ sriov.get(ansible_default_ipv4.address) }}"
+sriov_interface_list: []
+sriov_vf_list: []
+sriov_config_list: []
+sriov_config: ""
+
+# Qos-scheduling defaults
+qos_niantic: {}
+priority_config_compute: "{{ qos_niantic.get(ansible_default_ipv4.address) }}"
+priority_id_list: []
+priority_scheduling_list: []
+priority_bandwidth_list: []
+priority_id_config: ""
+priority_scheduling_config: ""
+priority_bandwidth_config: ""
+
+# Qos-queueing defaults
+qos: {}
+qos_config_compute: "{{ qos.get(ansible_default_ipv4.address) }}"
+qos_queue_id_list: []
+qos_logical_queue_list: []
+qos_queue_id_config: ""
+qos_logical_queue_config: ""
+default_nic_queue: {}
+qos_priority_tagging_config: "{{ '--qos_priority_tagging ' + hostvars[inventory_hostname].get('qos_priority_tagging') | string if hostvars[inventory_hostname].get('qos_priority_tagging') or
+                                 hostvars[inventory_hostname].get('qos_priority_tagging') == false else '' }}"
+
+# Tor id list
+tor_id_list: []
+tor_id_config: ""
+
+# Tsn mode
+tsn_mode_flag: "{{ hostvars[inventory_hostname].get('tsn_mode') | default('')}}"
+tsn_mode_enabled: "{{'--tsn_mode ' + 'True' if tsn_mode_flag else '' }}"
+
+# Vgw defaults
+vgw: {}
+vgw_config_compute: "{{ vgw.get(ansible_default_ipv4.address, {}) }}"
+vgw_intf_list: []
+vgw_public_subnet_list: []
+vgw_public_vn_name_list: []
+vgw_gateway_route_list: []
+vgw_public_subnet_config: ""
+vgw_public_vn_name_config: ""
+vgw_intf_list_config: ""
+vgw_gateway_routes_config: ""
+
+# Vrouter module params defaults
+flow_entries_str: "{{ 'flow_entries=' + hostvars[inventory_hostname].get('flow_entries') | string + ',' if hostvars[inventory_hostname].get('flow_entries') else '' }}"
+mpls_labels_str: "{{ 'mpls_labels=' + hostvars[inventory_hostname].get('mpls_labels') | string  + ',' if hostvars[inventory_hostname].get('mpls_labels') else '' }}"
+nexthops_str: "{{ 'nexthops=' + hostvars[inventory_hostname].get('nexthops') | string + ',' if hostvars[inventory_hostname].get('nexthops') else '' }}"
+vrfs_str: "{{ 'vrfs=' + hostvars[inventory_hostname].get('vrfs') | string + ',' if hostvars[inventory_hostname].get('vrfs') else '' }}"
+macs_str: "{{ 'macs=' + hostvars[inventory_hostname].get('macs') | string + ',' if hostvars[inventory_hostname].get('macs') else '' }}"
+oflow_entries_str: "{{ 'oflow_entries=' + hostvars[inventory_hostname].get('oflow_entries') | string + ',' if hostvars[inventory_hostname].get('oflow_entries') else '' }}"
+mac_oentries_str: "{{ 'mac_oentries=' + hostvars[inventory_hostname].get('mac_oentries') | string + ',' if hostvars[inventory_hostname].get('mac_oentries') else '' }}"
+max_interface_entries_str: "{{ 'max_interface_entries=' + hostvars[inventory_hostname].get('max_interface_entries') | string + ',' if hostvars[inventory_hostname].get('max_interface_entries') else '' }}"
+flow_hold_limit_str: "{{ 'flow_hold_limit=' + hostvars[inventory_hostname].get('flow_hold_limit') | string + ',' if hostvars[inventory_hostname].get('flow_hold_limit') else '' }}"
+vrouter_dbg_str: "{{ 'vrouter_dbg=' + hostvars[inventory_hostname].get('vrouter_dbg') | string + ',' if hostvars[inventory_hostname].get('vrouter_dbg') or hostvars[inventory_hostname].get('vrouter_dbg') == 0 else '' }}"
+vr_memory_alloc_checks_str: "{{ 'vr_memory_alloc_checks=' + hostvars[inventory_hostname].get('vr_memory_alloc_checks') | string + ','
+                                if hostvars[inventory_hostname].get('vr_memory_alloc_checks') or hostvars[inventory_hostname].get('vr_memory_alloc_checks') == 0 else '' }}"
+vrouter_module_params: "{{ flow_entries_str + mpls_labels_str + nexthops_str + vrfs_str + macs_str + oflow_entries_str + mac_oentries_str + max_interface_entries_str + flow_hold_limit_str + vr_memory_alloc_checks_str+ vrouter_dbg_str }}"
+vrouter_module_param_args: "{{ '--vrouter_module_params ' + vrouter_module_params if vrouter_module_params else '' }}"
+
+# Compute as gateway
+gateway_mode_config: "{{ '--compute_as_gateway ' + hostvars[inventory_hostname].get('compute_as_gateway_mode') if hostvars[inventory_hostname].get('compute_as_gateway_mode') else '' }}"
+
+#Link-Local Metadata Service password
+neutron_config: {}
+metadata_proxy_secret_config: "{{ '--metadata_secret ' + neutron_config.get('metadata_proxy_secret', '') if neutron_config.get('metadata_proxy_secret') else '' }}"
+
+# Metadata Service SSL Enable/Disable
+metadata_ssl_enable: False
+metadata_use_ssl: "{{ '--metadata_use_ssl ' if metadata_ssl_enable else '' }}"

@@ -1,0 +1,4 @@
+---
+
+- name: "Include for {{ ansible_os_family }}"
+  include: "host/{{ ansible_os_family }}.yml"

@@ -1,0 +1,8 @@
+---
+- name: Install curl
+  package: name=curl state=present
+
+- name: install docker using installer from get.docker.com
+  shell: curl -s -L {{docker_mirror}} | sh
+  args:
+    creates: /usr/bin/docker

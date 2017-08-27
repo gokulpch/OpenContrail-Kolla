@@ -1,0 +1,17 @@
+---
+# tasks file for common
+# This is to fix some of the package installation failure because of the command runlevel fail in containers
+# This will not overwrite exsting file
+- name: make sure /var/run/utmp exist
+  copy: content='' dest=/var/run/utmp owner=root group=root mode=0644 force=no
+  tags: always
+
+- name: set /etc/hosts entry for hostname
+  lineinfile: dest=/etc/hosts line="127.0.0.1 {{ ansible_hostname }}"
+
+- name: Disable selinux for redhat systems
+  command: setenforce 0
+  when: cloud_orchestrator != 'openstack' and ansible_os_family == 'RedHat' and ansible_selinux.status == 'enabled'
+
+- include: facts.yml
+  tags: always

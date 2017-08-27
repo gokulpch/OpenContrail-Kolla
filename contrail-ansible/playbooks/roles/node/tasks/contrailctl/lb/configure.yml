@@ -1,0 +1,13 @@
+---
+- name: Configure contrailctl/lb.conf
+  ini_file:
+    dest: "{{ contrailctl_config_directory }}/lb.conf"
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: "{{ item.value }}"
+    create: yes
+  with_inidata:
+    GLOBAL: "{{ global_config_orig }}"
+    LB: "{{ lb_config | default({}) }}"
+    HAPROXY: "{{ haproxy_config | default({}) }}"
+    HAPROXY_TORAGENT: "{{ haproxy_toragent_config | default({}) }}"

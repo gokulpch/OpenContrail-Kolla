@@ -1,0 +1,4 @@
+---
+- name: Install Contrail Neutron plugin packages
+  yum: name={{ item }} state=latest
+  with_items: "{{ neutron_plugin_packages }}"
