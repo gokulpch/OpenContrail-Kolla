@@ -6,6 +6,8 @@ OpenContrail Containers with Openstack Kolla
 - [Components](#Requirements)
 - [Configuration](#Configuration)
 
+<!-- toc -->
+
 ## Introduction
 
 Opencontrail 4.0 introduce a containerized Contrail architecture where users can run all the Contrail components (control/config, analytics, analyticsdb and vRouter-agent) as Docker containers. This document enables users to install OpenContrail with Openstack-Kolla. Contrail-ansible provisions contrail containers and kolla-ansible provisions Openstack-Kolla (openstack containers), kolla-ansible is provided with the required parameters to use customized nova-compute and neutron containers with required changes to enable contrail functionalities.
@@ -87,9 +89,105 @@ Users can deploy Openstack using openstack-kolla first, followed by contrail-ans
     localhost       ansible_connection=local
     ```
     
+  * OpenContrail-Kolla/kolla-ansible/ansible/inventory/multinode
+  
+    multinode: users can use this configuration file to install multinode-cluster
+    
+    ```
+    [control]
+    # These hostname must be resolvable from your deployment host
+    1ocata
+
+    [network]
+    ocata1
+
+    [compute]
+    ocata2
+
+    [monitoring]
+    ocata1
+
+    [storage]
+    ocata1
+   ```
 
 * contrail-ansible:
 
+  * OpenContrail-Kolla/contrail-ansible/playbooks/inventory/my-inventory/hosts
+  
+    Change the management IP address in the fields below. In case of a all-in-one cluster all the IP addresses should be the same. For multinode cluster multiple IP addresses can be provided in all the fields as required.  
+    ```
+    # Enable contrail-repo when required - this will start a contrail apt or yum repo container on specified node
+    # This repo will be used by other nodes on installing any packages in the node
+    # setting up contrail-cni need this repo enabled
+    # NOTE: Repo is required only for mesos and nested mode kubernetes
+    ;[contrail-repo]
+    ;192.168.0.24
+
+    [contrail-controllers]
+    10.87.1.49
+
+    [contrail-analyticsdb]
+    10.87.1.49
+
+    [contrail-analytics]
+    10.87.1.49
+
+    [contrail-compute]
+    10.87.1.49
+
+     ##
+    # Only enable if you setup with openstack (when cloud_orchestrator is openstack)
+    ##
+    [openstack-controllers]
+    10.87.1.49
+    ```
+ 
+  * OpenContrail-Kolla/contrail-ansible/playbooks/inventory/my-inventory/group_vars/all.yml
+  
+    Change the external_rabbitmq_servers to the host_ip, the same IP address used in the configuration above. If the user changes the default password the same should be updated in the rabbitmq_config below.
+    ```
+    # global_config:
+    global_config: { external_rabbitmq_servers: 10.87.1.49 }
+    rabbitmq_config: { user: openstack, password: contrail1 }
+    ```
+    Change the keystone_ip in keystone_config below, this should be the same address as mentioned above in the rabbitmq configuration 
+    ```
+    keystone_config: {ip: 10.87.1.49, admin_password: contrail1, auth_protocol: http}
+    ```
+    The primary interface with IP address on the host. THis should be the same interfaces mentioned in 'network_interface' section in globals.yml in the openstack_kolla configuration.
+    ```
+    # vrouter physical interface
+    vrouter_physical_interface: ens3
+    ```
+
+## Provisioning
+
+#### Packages and Dependencies
+
+Install the following dependencies on the host:
+
+```
+apt-get update
+apt-get install python-pip sshpass python-oslo-config python-dev libffi-dev gcc libssl-dev qemu-kvm
+pip install -U pip
+pip install -U ansible    #Upgrades pip to the latest version
+pip install  pyOpenSSL==16.2.0
+```
+
+Install latest Docker on the host. The installation scripts installs older version of Docker by default.
+
+```
+curl -sSL https://get.docker.io | bash
+```
+
+#### Installation
+
+Follow the sequence of installation steps:
+
+
+    
+    
 
   
   
