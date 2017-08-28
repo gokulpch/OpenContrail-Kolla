@@ -6,7 +6,6 @@ OpenContrail Containers with Openstack Kolla
 - [Components](#Requirements)
 - [Configuration](#Configuration)
 
-<!-- toc -->
 
 ## Introduction
 
@@ -109,7 +108,8 @@ Users can deploy Openstack using openstack-kolla first, followed by contrail-ans
 
     [storage]
     ocata1
-   ```
+    
+    ```
 
 * contrail-ansible:
 
