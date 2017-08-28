@@ -58,7 +58,35 @@ Users can deploy Openstack using openstack-kolla first, followed by contrail-ans
     # This should be the management address on the host, ens3 IP address which is the network_interface mentioned above.
     contrail_api_interface_address: "10.87.1.49"
     ```
+    
+  * OpenContrail-Kolla/kolla-ansible/etc/kolla/passwords.yml
+  
+    All the passwords in the configuration are set to "contrail1". If users intend to change the passwords the file can be updated.
+    
+  * OpenContrail-Kolla/kolla-ansible/ansible/inventory/all-in-one
+  
+    all-in-one: all the configuration can be left unchanged in case of a single node install
+    
+    ```
+    [control]
+    localhost       ansible_connection=local
 
+    [network]
+    localhost       ansible_connection=local
+
+    [compute]
+    localhost       ansible_connection=local
+
+    [storage]
+    localhost       ansible_connection=local
+
+    [monitoring]
+    localhost       ansible_connection=local
+
+    [deployment]
+    localhost       ansible_connection=local
+    ```
+    
 
 * contrail-ansible:
 
