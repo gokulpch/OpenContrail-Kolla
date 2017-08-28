@@ -10,7 +10,7 @@ Opencontrail 4.0 introduce a containerized Contrail architecture where users can
 
 ## Requirements
 
-* Users can use a single server or a VM 
+* Users can use a single server or a VM
 
 
 
@@ -50,6 +50,3 @@ Opencontrail 4.0 introduce a containerized Contrail architecture where users can
 
 
 
-
-
-## Introduction
