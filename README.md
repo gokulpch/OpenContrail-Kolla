@@ -10,7 +10,12 @@ Opencontrail 4.0 introduce a containerized Contrail architecture where users can
 
 ## Requirements
 
-* Users can use a single server or a VM
+* Users can use a single server or a VM. Multinode cluster can be installed with the instructions mentioned in the installation section of the document.
+* Ubuntu 16.04.2 LTS, Kernel: 4.4.0-62-generic
+* The host VM/Machine must satisfy the following minimum requirements
+             * 2 network interfaces (primary network interface with IP will be used as contrail-vrouter interface and openstack services interface, the second interface can be without IP address and is mostly unusable)
+             * 32GB main memory (to enable considrable usage of the cluster)
+             * 150GB disk space
 
 
 
