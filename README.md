@@ -200,6 +200,20 @@ Follow the sequence of installation steps:
 
 * contrail-ansible
 
+  * Copy keys for password less access and disable host_checking
+  
+    Generate keys:
+    
+    ```
+    ssh-keygen -t rsa
+    ```
+    
+    copy keys:
+    
+    ```
+    ssh-copy-id -i ~/.ssh/id_rsa.pub root@127.0.0.1
+    ```
+
   * OpenContrail-Kolla/contrail-ansible/playbooks/
   
   Install Contrail Containers
