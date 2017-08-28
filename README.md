@@ -185,6 +185,30 @@ curl -sSL https://get.docker.io | bash
 
 Follow the sequence of installation steps:
 
+* kolla-ansible
+
+  * OpenContrail-Kolla/kolla-ansible/ansible/
+  
+   Bootstrap Host
+   ```
+    ansible-playbook -i inventory/all-in-one -e @../etc/kolla/globals.yml -e @../etc/kolla/passwords.yml -e      action=bootstrap-servers kolla-host.yml
+    ```
+   Deploy Openstack Containers-Kolla
+   ```
+   ansible-playbook -vvv -i inventory/all-in-one -e @../etc/kolla/globals.yml -e @../etc/kolla/passwords.yml -e action=deploy site.yml
+   ```
+
+* contrail-ansible
+
+  * OpenContrail-Kolla/contrail-ansible/playbooks/
+  
+  Install Contrail Containers
+  ```
+  ansible-playbook  -i inventory/my-inventory site.yml
+  ```
+  
+  
+
 
     
     
